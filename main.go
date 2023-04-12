@@ -1,4 +1,4 @@
-package main 
+package main
 
 import "fmt"
 import "encoding/hex"
@@ -11,8 +11,8 @@ import "time"
 
 const (
 	MTPROTO_SERVER = "149.154.167.40:443"
-	SEND_CODE = 0xa677244f
-	REQ_PC = 0xbe7e8ef1
+	SEND_CODE      = 0xa677244f
+	REQ_PC         = 0xbe7e8ef1
 )
 
 type Int128 struct {
@@ -25,11 +25,11 @@ type Net struct {
 	net.Conn
 }
 type Message struct {
-	Msg []byte
+	Msg   []byte
 	MsgID int64
 }
 
-/* 
+/*
 	This simply returns a set of bytes needed for req_pc_multi
 	(rewrite)
 	First, write *function address*, then generate nonce:
@@ -45,20 +45,20 @@ func ReqPCPayload() []byte {
 	payload := &Buffer{bytes.NewBuffer(nil)}
 
 	payload.PutInt(REQ_PC)
-	fmt.Println("[*] building req_pc_milti payload")	
+	fmt.Println("[*] building req_pc_milti payload")
 	payload.Write(Nonce())
-	
+
 	msgLen := len(payload.Bytes())
 	msg := make([]byte, msgLen)
 
 	copy(msg, payload.Bytes())
 
-	ts := time.Now().UnixNano() * 2 
+	ts := time.Now().UnixNano() * 2
 
 	payload.Reset()
 
 	payload.PutLong(0)
-	payload.PutLong(ts^2) // Exact unixtime * 2^32
+	payload.PutLong(ts ^ 2) // Exact unixtime * 2^32
 	payload.PutInt(uint32(msgLen))
 
 	payload.Write(msg)
@@ -93,7 +93,7 @@ func main() {
 	pl := ReqPCPayload()
 
 	net.Gift(pl)
-	
+
 }
 
 func (net *Net) Gift(data []byte) {
@@ -134,7 +134,7 @@ func (net *Net) Gift(data []byte) {
 func Nonce() []byte {
 	var max *big.Int = big.NewInt(0).Exp(big.NewInt(26), big.NewInt(26), nil)
 	n, _ := rand.Int(rand.Reader, max)
-	
+
 	i := &Int128{Int: big.NewInt(0)}
 	i.SetBytes(n.Bytes())
 	return i.Bytes()
