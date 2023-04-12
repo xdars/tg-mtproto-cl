@@ -14,7 +14,7 @@ const (
 	SEND_CODE      = 0xa677244f
 	REQ_PC         = 0xbe7e8ef1
 )
-
+var receive chan []byte
 type Int128 struct {
 	*big.Int
 }
@@ -27,6 +27,30 @@ type Net struct {
 type Message struct {
 	Msg   []byte
 	MsgID int64
+}
+
+
+func (net *Net) ReadLoop() {
+	rbuf := make([]byte, 1024)
+	for {
+		n, err := net.Read(rbuf)
+		if err == nil {
+			receive <-rbuf[:n]
+		}
+	}
+}
+
+func RecvHeart() {
+	for {
+		select {
+		case data := <-receive: {
+			fmt.Println("[+] Got response:", len(data))
+			fmt.Println(data)
+			hexed := hex.EncodeToString(data)
+			fmt.Println("Hex:", hexed)
+		}
+		}
+	}
 }
 
 /*
@@ -45,7 +69,7 @@ func ReqPCPayload() []byte {
 	payload := &Buffer{bytes.NewBuffer(nil)}
 
 	payload.PutInt(REQ_PC)
-	fmt.Println("[*] building req_pc_milti payload")
+	fmt.Println("[*] building req_pc_multi payload")
 	payload.Write(Nonce())
 
 	msgLen := len(payload.Bytes())
@@ -74,6 +98,7 @@ func ReqPCPayload() []byte {
 }
 
 func main() {
+	receive = make(chan []byte, 2)
 	tcpServer, err := net.ResolveTCPAddr("tcp", MTPROTO_SERVER)
 	if err != nil {
 		fmt.Println("err", err)
@@ -93,7 +118,9 @@ func main() {
 	pl := ReqPCPayload()
 
 	net.Gift(pl)
-
+	go RecvHeart()
+	net.ReadLoop()
+	
 }
 
 func (net *Net) Gift(data []byte) {
@@ -118,7 +145,7 @@ func (net *Net) Gift(data []byte) {
 	}
 	fmt.Println("[+] payload sent")
 
-	rbuf := make([]byte, 50)
+	/*rbuf := make([]byte, 50)
 	n, err := net.Read(rbuf)
 
 	if err != nil {
@@ -128,7 +155,7 @@ func (net *Net) Gift(data []byte) {
 	fmt.Println("[+] Got response:", n)
 	fmt.Println(rbuf)
 	hexed := hex.EncodeToString(rbuf)
-	fmt.Println("Hex:", hexed)
+	fmt.Println("Hex:", hexed)*/
 }
 
 func Nonce() []byte {
