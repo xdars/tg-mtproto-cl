@@ -19,7 +19,7 @@ type Int128 struct {
 	*big.Int
 }
 type Buffer struct {
-    *bytes.Buffer
+	*bytes.Buffer
 }
 type Net struct {
 	net.Conn
