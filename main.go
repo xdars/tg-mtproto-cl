@@ -153,17 +153,21 @@ func (wire *Wire) ProcessResPQ(data []byte, nonce []byte) {
 		Single-byte prefix denoting length, 8-byte string, and three bytes of padding
 	*/
 	pq := big.NewInt(0).SetBytes(data[57:65])
-	p, q := SplitPQ(pq)
+	p, q := fct(pq.Int64())
+	pn := binary.BigEndian.Uint32(p)
+	qn := binary.BigEndian.Uint32(q)
+	
+	fmt.Println(p, q)
+	fmt.Println(pn, qn)
 
-	if p.Int64() > q.Int64() {
+	if pn > qn {
 		fmt.Println("p is not less than q")
 		return
 	}
-
 	sha1h := sha1.New()
 	newNonce := NewNonce()
 
-	innerDataPL := InnerDataPayload(pq.Bytes(), p.Bytes(), q.Bytes(), nonce, data[40:56], newNonce)
+	innerDataPL := InnerDataPayload(pq.Bytes(), p, q, nonce, data[40:56], newNonce)
 	hashedMessage := make([]byte, 255)
 
 	sha1h.Write(innerDataPL)
@@ -181,7 +185,7 @@ func (wire *Wire) ProcessResPQ(data []byte, nonce []byte) {
 	keyFingerprint := int64(binary.LittleEndian.Uint64(RSAFingerprint(key)))
 
 	// slice is 16 bytes of the returned server_nonce
-	reqDH := reqDHPayload(nonce, data[40:56], p.Bytes(), q.Bytes(), keyFingerprint, encrypted)
+	reqDH := reqDHPayload(nonce, data[40:56], p, q, keyFingerprint, encrypted)
 
 	wire.Gift(reqDH)
 
