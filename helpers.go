@@ -1,8 +1,10 @@
 package main
 
-import "math/big"
-import "encoding/binary"
-import "crypto/rand"
+import (
+	"math/big"
+	"encoding/binary"
+	"crypto/rand"
+)
 
 func Nonce() []byte {
 	var max *big.Int = big.NewInt(0).Exp(big.NewInt(26), big.NewInt(26), nil)
@@ -27,11 +29,13 @@ func (pl *Buffer) PutLong(val int64) {
 	binary.LittleEndian.PutUint64(arbitrary, uint64(val))
 	pl.Write(arbitrary)
 }
+
 func (pl *Buffer) PutUint64(val uint64) {
 	arbitrary := make([]byte, 8)
 	binary.LittleEndian.PutUint64(arbitrary, uint64(val))
 	pl.Write(arbitrary)
 }
+
 func (pl *Buffer) PutInt128(val int64) {
 	arb := make([]byte, 16)
 	binary.LittleEndian.PutUint64(arb, uint64(val))
@@ -72,5 +76,4 @@ func (e *Buffer) WriteMessage(msg []byte) {
 	}
 
 	e.Write(buf)
-
 }
