@@ -1,51 +1,90 @@
 package main
 
 import (
-	"encoding/binary"
-	"fmt"
+	"math/big"
 )
 
-func g(x, p int64) int64 {
-	return (x*x + 1) % p
-}
+var one = big.NewInt(1)
+var two = big.NewInt(2)
 
-func gcd(x, y int64) int64 {
-	for y != 0 {
-		x, y = y, x%y
-	}
-	return x
-}
+func checkGCD(n, g *big.Int) (newN, newG *big.Int, ok bool) {
+	var z big.Int
+	g.Abs(g)
+	z.GCD(nil, nil, n, g)
 
-func abs(x int64) int64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-// slow
-func fct(pq int64) ([]byte, []byte) {
-	x := int64(2)
-	y := int64(2)
-	d := int64(1)
-	fmt.Println("[*] splitting ...")
-	for d == 1 {
-		x = g(x, pq)
-		y = g(g(y, pq), pq)
-
-		d = gcd(abs(x-y), pq)
-		/*if d == pq || pq/d == 1 {
-			fmt.Println("repeating")
-			x = 2
-			y = 2
-			d = 1
-		}*/
+	if z.Cmp(n) == 0 {
+		return nil, nil, false
 	}
 
-	p := make([]byte, 4)
-	q := make([]byte, 4)
+	if z.Cmp(one) == 0 {
+		return nil, nil, false
+	}
 
-	binary.BigEndian.PutUint32(p, uint32(pq/d))
-	binary.BigEndian.PutUint32(q, uint32(d))
+	n.Div(n, &z)
 
-	return p, q
+	return n, &z, true
+}
+
+func Brent(n *big.Int, start, c int64) (primes []*big.Int) {
+	if n.ProbablyPrime(10) {
+		return []*big.Int{n}
+	}
+
+	x1 := big.NewInt(start)
+	x2 := big.NewInt(start*start + c)
+
+	bigc := big.NewInt(c)
+
+	for j := 0; j < 1000; j++ {
+		x2.Exp(x2, two, n)
+		x2.Add(x2, bigc)
+	}
+
+	limit := 1
+	product := big.NewInt(1)
+
+	terms := 0
+	for terms < (1 << 16) {
+		for j := 0; j < limit; j++ {
+			x2.Exp(x2, two, n)
+			x2.Add(x2, bigc)
+
+			if x1.Cmp(x2) == 0 {
+				break
+			}
+
+			var tmp big.Int
+			tmp.Sub(x1, x2)
+			product.Mul(product, &tmp)
+
+			terms++
+			if terms%16 == 0 {
+
+				if newN, newG, ok := checkGCD(n, product); ok {
+					pr := Brent(newN, start, c)
+					primes = append(primes, pr...)
+					pr = Brent(newG, start, c)
+					primes = append(primes, pr...)
+					return primes
+				}
+
+				product.SetInt64(1)
+			}
+		}
+
+		x1.Set(x2)
+		limit *= 2
+		for j := 0; j < limit; j++ {
+			x2.Exp(x2, two, n)
+			x2.Add(x2, bigc)
+		}
+	}
+
+	if n.Cmp(one) != 0 {
+		if n.ProbablyPrime(10) {
+			primes = append(primes, n)
+		}
+	}
+
+	return primes
 }
