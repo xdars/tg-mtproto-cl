@@ -153,17 +153,10 @@ func (wire *Wire) ProcessResPQ(data []byte, nonce []byte) {
 		Single-byte prefix denoting length, 8-byte string, and three bytes of padding
 	*/
 	pq := big.NewInt(0).SetBytes(data[57:65])
-	p, q := fct(pq.Int64())
-	pn := binary.BigEndian.Uint32(p)
-	qn := binary.BigEndian.Uint32(q)
-	
-	fmt.Println(p, q)
-	fmt.Println(pn, qn)
+	a := Brent(big.NewInt(0).SetBytes(data[57:65]), 30, 1)
+	p := a[0].Bytes()
+	q := a[1].Bytes()
 
-	if pn > qn {
-		fmt.Println("p is not less than q")
-		return
-	}
 	sha1h := sha1.New()
 	newNonce := NewNonce()
 
