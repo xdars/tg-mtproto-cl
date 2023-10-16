@@ -2,33 +2,32 @@ package main
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rsa"
 	"crypto/sha1"
-	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net"
+	"sync"
 	"time"
 )
 
 const (
-	MTPROTO_SERVER     = "149.154.167.50:443"
-	SEND_CODE          = 0xa677244f
-	REQ_PC             = 0xbe7e8ef1
-	REQ_DH             = 0xd712e4be
-	INNER_DP           = 0x83c95aec
-	ServerDHParamsOK   = 0xd0e8075c
-	ServerDHInnterData = 0xb5890dba
-
-	_sk0 = 1
-	_sk1 = 4
+	MTPROTO_SERVER = "149.154.167.50:443"
+	_sk0           = 1
+	_sk1           = 4
 )
+
+var CRCS = map[string]uint32{
+	"SEND_CODE":          0xa677244f,
+	"REQ_PC":             0xbe7e8ef1,
+	"REQ_DH":             0xd712e4be,
+	"RES_PQ":             0x05162463,
+	"INNER_DP":           0x83c95aec,
+	"ServerDHParamsOK":   0xd0e8075c,
+	"ServerDHInnterData": 0xb5890dba,
+}
 
 type Int128 struct {
 	*big.Int
@@ -43,77 +42,61 @@ type Wire struct {
 	mode         string
 	pad          int
 	N            *Net
+	clNonce      []byte // resPQ stage
+	srvNonce     []byte // resPQ stage
+	newNonce     []byte // resPQ stage
+	resPQStream  []byte
+	key          *rsa.PublicKey
+	resPQStage   bool
+	resPQSent    bool
 }
 
 type Net struct {
 	net.Conn
 }
 
-type Message struct {
-	Msg   []byte
-	MsgID int64
+var resp chan []byte
+var dataSentSignal chan bool
+
+func (wire *Wire) Processor(w *sync.WaitGroup) {
+	w.Add(1)
+	go func() {
+		for {
+
+			select {
+			case data := <-resp:
+				wire.processResponse(data)
+			}
+		}
+	}()
 }
 
-func AesDecrypt(key, iv, data []byte) []byte {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		fmt.Println(err)
-		return nil
+func (wire *Wire) Try(stream []byte, skip int) bool {
+	padded := stream[skip:]
+	if binary.LittleEndian.Uint32(padded[20:24]) == CRCS["ServerDHParamsOK"] {
+		fmt.Println("[*] server_DH_params_ok")
+		wire.ProcessServerDHParamsOk(padded, wire.newNonce, wire.resPQStream[40:56])
+		return true
 	}
-	if len(data) < aes.BlockSize {
-		fmt.Println("block size short")
-		return nil
+	if binary.LittleEndian.Uint32(padded[20:24]) == CRCS["RES_PQ"] {
+		fmt.Println("RES_PQ")
+		wire.ProcessResPQ(padded, wire.clNonce)
+		return true
 	}
-	iv = data[:aes.BlockSize]
-	data = data[aes.BlockSize:]
-	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(data, data)
-	fmt.Println("Decrypted data length:", len(data))
-	return data
-
-}
-func genTmpKeys(nonceSecond, nonceServer []byte) (key, iv []byte) {
-	fmt.Println("Generating tmp keys")
-	fmt.Println("newNonce", hex.EncodeToString(nonceSecond))
-	fmt.Println("nonceServer", hex.EncodeToString(nonceServer))
-
-	b0 := make([]byte, len(nonceSecond)+len(nonceServer))
-	b1 := make([]byte, len(nonceSecond)+len(nonceServer))
-
-	copy(b0[:len(nonceSecond)], nonceSecond)
-	copy(b0[len(nonceSecond):], nonceServer)
-
-	copy(b1[:len(nonceServer)], nonceServer)
-	copy(b1[len(nonceServer):], nonceSecond)
-
-	b0Hash := sha1.New()
-	b1Hash := sha1.New()
-
-	b0Hash.Write(b0)
-	b1Hash.Write(b1)
-
-	tmpAESKey := make([]byte, 32)
-	copy(tmpAESKey[:len(b0Hash.Sum(nil))], b0Hash.Sum(nil))
-	copy(tmpAESKey[len(b0Hash.Sum(nil)):], b1Hash.Sum(nil)[:12])
-
-	fmt.Println("tmp_aes_key:", hex.EncodeToString(tmpAESKey))
-
-	b2 := make([]byte, len(nonceSecond)*2)
-	copy(b2[:len(nonceSecond)], nonceSecond)
-	copy(b2[len(nonceSecond):], nonceSecond)
-
-	b2Hash := sha1.New()
-	b2Hash.Write(b2)
-
-	tmpAESIV := make([]byte, 32)
-	copy(tmpAESIV[0:], b1Hash.Sum(nil)[12:12+8])
-	copy(tmpAESIV[8:], b2Hash.Sum(nil))
-	copy(tmpAESIV[28:], nonceSecond[0:4])
-
-	fmt.Println("tmp_aes_iv:", hex.EncodeToString(tmpAESIV), len(tmpAESIV))
-	return tmpAESKey, tmpAESIV
+	return false
 }
 
+func (wire *Wire) processResponse(data []byte) {
+	maxPad := 5
+
+	for maxPad > 0 {
+		ok := wire.Try(data, maxPad)
+		if ok {
+			break
+		}
+		maxPad--
+	}
+}
 func (wire *Wire) DefineMode() {
 	bytes := []byte{0xef}
 	wire.pad = 1
@@ -130,15 +113,16 @@ func (wire *Wire) DefineMode() {
 
 func (wire *Wire) makeAuthKey() {
 	nonce := Nonce()
-	pl := ReqPCPayload(nonce)
+	wire.clNonce = nonce
+
+	pl := ReqPCPayload(wire.clNonce)
 
 	wire.Gift(pl)
-	rbuf := make([]byte, 1024)
-	n, _ := wire.N.Read(rbuf)
-	wire.ProcessResPQ(rbuf[wire.pad:n], nonce)
 }
 
 func (wire *Wire) ProcessServerDHParamsOk(data []byte, nonceSecond, nonceServer []byte) {
+	wire.resPQStage = false
+
 	encryptedAnswer := data[56:]
 	key, iv := genTmpKeys(nonceSecond, nonceServer)
 
@@ -156,47 +140,37 @@ func (wire *Wire) ProcessResPQ(data []byte, nonce []byte) {
 	a := Brent(big.NewInt(0).SetBytes(data[57:65]), 30, 1)
 	p := a[0].Bytes()
 	q := a[1].Bytes()
+	fmt.Println(binary.LittleEndian.Uint32(p), binary.LittleEndian.Uint32(q))
 
 	sha1h := sha1.New()
 	newNonce := NewNonce()
 
+	wire.newNonce = newNonce
+	wire.srvNonce = data[40:56]
+
 	innerDataPL := InnerDataPayload(pq.Bytes(), p, q, nonce, data[40:56], newNonce)
+
 	hashedMessage := make([]byte, 255)
+
+	wire.resPQStream = data
 
 	sha1h.Write(innerDataPL)
 	copy(hashedMessage, append(sha1h.Sum(nil), innerDataPL...))
 
-	// perhaps needs to be taken away to different place
-	pbkf, _ := ioutil.ReadFile("tg_pk.pem")
-	pbk, _ := pem.Decode(pbkf)
-	key, _ := x509.ParsePKCS1PublicKey(pbk.Bytes)
+	encrypted := RSAd(hashedMessage, wire.key)
 
-	// RSA it
-	encrypted := RSAd(hashedMessage, key)
-	// encrypted data length is important. *track* it
 	fmt.Println("Encrypted data length:", len(encrypted))
-	keyFingerprint := int64(binary.LittleEndian.Uint64(RSAFingerprint(key)))
+	keyFingerprint := int64(binary.LittleEndian.Uint64(RSAFingerprint(wire.key)))
 
-	// slice is 16 bytes of the returned server_nonce
 	reqDH := reqDHPayload(nonce, data[40:56], p, q, keyFingerprint, encrypted)
 
 	wire.Gift(reqDH)
-
-	rbuf := make([]byte, 1024)
-	n2, _ := wire.N.Read(rbuf)
-	rbuf = rbuf[_sk1:n2] // skip four bytes
-
-	constructorNmb := binary.LittleEndian.Uint32(rbuf[20:24])
-	if constructorNmb == ServerDHParamsOK {
-		fmt.Println("[*] server_DH_params_ok")
-		wire.ProcessServerDHParamsOk(rbuf, newNonce, data[40:56])
-	}
 }
 
 func reqDHPayload(nonce []byte, nonceServer []byte, p []byte, q []byte, kfp int64, encrypted []byte) []byte {
 	fmt.Println("[*] building req_dh_params payload")
 	payload := &Buffer{bytes.NewBuffer(nil)}
-	payload.PutInt(REQ_DH)
+	payload.PutInt(CRCS["REQ_DH"])
 	payload.Write(nonce)
 	payload.Write(nonceServer)
 	payload.WriteMessage(p)
@@ -212,7 +186,7 @@ func reqDHPayload(nonce []byte, nonceServer []byte, p []byte, q []byte, kfp int6
 func InnerDataPayload(pq, p, q, nonce, serverNonce, NewNonce []byte) []byte {
 	payload := &Buffer{bytes.NewBuffer(nil)}
 
-	payload.PutInt(INNER_DP)
+	payload.PutInt(CRCS["INNER_DP"])
 
 	payload.WriteMessage(pq)
 	payload.WriteMessage(p)
@@ -230,7 +204,7 @@ func ReqPCPayload(nonce []byte) []byte {
 
 	fmt.Println("[*] building req_pc_multi payload")
 
-	payload.PutInt(REQ_PC)
+	payload.PutInt(CRCS["REQ_PC"])
 	payload.Write(nonce)
 	payload.Build()
 
@@ -243,16 +217,25 @@ func main() {
 		fmt.Println("err", err)
 		return
 	}
-
+	var wg sync.WaitGroup
 	conn, err := net.DialTCP("tcp", nil, tcpServer)
 	if err != nil {
 		fmt.Println("err", err)
 		return
 	}
-	wire := &Wire{false, "", 0, &Net{conn}}
+	resp = make(chan []byte, 5)
+	dataSentSignal = make(chan bool, 5)
+
+	wire := new(Wire)
+	wire.LoadKeys()
+
+	wire.N = &Net{conn}
+	wire.Processor(&wg)
+
 	wire.DefineMode()
 
 	wire.makeAuthKey()
+	wg.Wait()
 }
 
 func (wire *Wire) Gift(data []byte) {
@@ -281,6 +264,9 @@ func (wire *Wire) Gift(data []byte) {
 		fmt.Println("[x] could not send payload", err)
 		return
 	}
+	rbuf := make([]byte, 1024)
+	n, _ := wire.N.Read(rbuf)
+	resp <- rbuf[:n]
 	fmt.Printf("[+][m:%s][l:%d] payload sent;\nH: %s\n", wire.mode, len(payload), hex.EncodeToString(payload))
 
 }
