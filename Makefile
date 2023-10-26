@@ -1,2 +1,2 @@
 ALL:
-	go build -o runme *.go
+	go build -o runme src/*.go
