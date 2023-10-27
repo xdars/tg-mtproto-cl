@@ -200,7 +200,7 @@ func main() {
 
 	wire := new(Wire)
 	wire.LoadKeys()
-
+	if wire.key == nil { return }
 	wire.N = &Net{conn}
 	wire.Processor(ctx, &wg)
 

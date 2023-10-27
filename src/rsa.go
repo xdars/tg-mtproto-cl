@@ -8,10 +8,15 @@ import (
 	"encoding/pem"
 	"io/ioutil"
 	"math/big"
+	"fmt"
 )
 
 func (wire *Wire) LoadKeys() {
-	pbkf, _ := ioutil.ReadFile("tg_pk.pem")
+	pbkf, err := ioutil.ReadFile("tg_pk.pem")
+	if err != nil {
+		fmt.Println("no keys file found")
+		return
+	}
 	pbk, _ := pem.Decode(pbkf)
 	key, _ := x509.ParsePKCS1PublicKey(pbk.Bytes)
 
