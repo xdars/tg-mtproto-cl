@@ -49,8 +49,6 @@ type Wire struct {
 	newNonce     []byte // resPQ stage
 	resPQStream  []byte
 	key          *rsa.PublicKey
-	resPQStage   bool
-	resPQSent    bool
 }
 
 type Net struct {
@@ -116,7 +114,6 @@ func (wire *Wire) DefineMode() {
 		bytes = []byte{0xee, 0xee, 0xee, 0xee}
 	}
 
-	log.Println(bytes)
 	wire.N.Write(bytes)
 }
 
@@ -130,12 +127,10 @@ func (wire *Wire) makeAuthKey() {
 }
 
 func (wire *Wire) ProcessServerDHParamsOk(data []byte, nonceSecond, nonceServer []byte) {
-	wire.resPQStage = false
 
 	encryptedAnswer := data[56:]
 	key, iv := genTmpKeys(nonceSecond, nonceServer)
 
-	// does not work
 	decryptedAnswer := AesDecrypt(key, iv, encryptedAnswer)
 	_ = decryptedAnswer
 	crc := binary.LittleEndian.Uint32(decryptedAnswer[:4])
@@ -144,15 +139,11 @@ func (wire *Wire) ProcessServerDHParamsOk(data []byte, nonceSecond, nonceServer 
 }
 
 func (wire *Wire) ProcessResPQ(data []byte, nonce []byte) {
-	/*
-		56-68
-		Single-byte prefix denoting length, 8-byte string, and three bytes of padding
-	*/
 	pq := big.NewInt(0).SetBytes(data[57:65])
 	a := Brent(big.NewInt(0).SetBytes(data[57:65]), 30, 1)
+
 	p := a[0].Bytes()
 	q := a[1].Bytes()
-	log.Println(binary.LittleEndian.Uint32(p), binary.LittleEndian.Uint32(q))
 
 	sha1h := sha1.New()
 	newNonce := NewNonce()
@@ -200,7 +191,9 @@ func main() {
 
 	wire := new(Wire)
 	wire.LoadKeys()
-	if wire.key == nil { return }
+	if wire.key == nil {
+		return
+	}
 	wire.N = &Net{conn}
 	wire.Processor(ctx, &wg)
 
@@ -233,12 +226,12 @@ func (wire *Wire) Gift(data []byte) {
 	payload = append(payload, data...)
 
 	if _, err := wire.N.Write(payload); err != nil {
-		log.Println("[x] could not send payload", err)
+		log.Println("could not send payload", err)
 		return
 	}
 	rbuf := make([]byte, 1024)
 	n, _ := wire.N.Read(rbuf)
 	resp <- rbuf[:n]
-	log.Printf("[+][m:%s][l:%d] payload sent;\nH: %s\n", wire.mode, len(payload), hex.EncodeToString(payload))
+	log.Printf("[m:%s][l:%d] payload sent\n", wire.mode, len(payload))
 
 }

@@ -8,13 +8,13 @@ import (
 	"encoding/pem"
 	"io/ioutil"
 	"math/big"
-	"fmt"
+	"log"
 )
 
 func (wire *Wire) LoadKeys() {
 	pbkf, err := ioutil.ReadFile("tg_pk.pem")
 	if err != nil {
-		fmt.Println("no keys file found")
+		log.Println(err)
 		return
 	}
 	pbk, _ := pem.Decode(pbkf)

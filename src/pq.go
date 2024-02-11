@@ -29,7 +29,7 @@ func Brent(n *big.Int, start, c int64) (primes []*big.Int) {
 	if n.ProbablyPrime(10) {
 		return []*big.Int{n}
 	}
-
+	
 	x1 := big.NewInt(start)
 	x2 := big.NewInt(start*start + c)
 
