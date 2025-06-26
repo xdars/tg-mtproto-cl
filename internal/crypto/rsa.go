@@ -25,13 +25,13 @@ func RSAd(data []byte, key *rsa.PublicKey) []byte {
 func RSAFingerprint(key *rsa.PublicKey) []byte {
 	bi := big.NewInt(0).SetInt64(int64(key.E))
 
-	e := &helpers.Buffer{bytes.NewBuffer(nil)}
+	e := &helpers.Buffer{Ext: bytes.NewBuffer(nil)}
 
 	e.WriteMessage(key.N.Bytes())
 	e.WriteMessage(bi.Bytes())
 
 	fp := sha1.New()
 
-	fp.Write(e.Bytes())
+	fp.Write(e.Ext.Bytes())
 	return []byte(fp.Sum(nil))[12:]
 }

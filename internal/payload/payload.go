@@ -20,10 +20,10 @@ var CRCS = map[string]uint32{
 
 func ReqDHPayload(nonce []byte, nonceServer []byte, p []byte, q []byte, kfp int64, encrypted []byte) []byte {
 	log.Println("[*] building req_dh_params payload")
-	payload := &helpers.Buffer{bytes.NewBuffer(nil)}
+	payload := &helpers.Buffer{Ext: bytes.NewBuffer(nil)}
 	payload.PutInt(CRCS["REQ_DH"])
-	payload.Write(nonce)
-	payload.Write(nonceServer)
+	payload.Ext.Write(nonce)
+	payload.Ext.Write(nonceServer)
 	payload.WriteMessage(p)
 	payload.WriteMessage(q)
 	payload.PutLong(kfp)
@@ -31,11 +31,11 @@ func ReqDHPayload(nonce []byte, nonceServer []byte, p []byte, q []byte, kfp int6
 
 	Build(payload)
 
-	return payload.Bytes()
+	return payload.Ext.Bytes()
 }
 
 func InnerDataPayload(pq, p, q, nonce, serverNonce, NewNonce []byte) []byte {
-	payload := &helpers.Buffer{bytes.NewBuffer(nil)}
+	payload := &helpers.Buffer{Ext: bytes.NewBuffer(nil)}
 
 	payload.PutInt(CRCS["INNER_DP"])
 
@@ -43,37 +43,37 @@ func InnerDataPayload(pq, p, q, nonce, serverNonce, NewNonce []byte) []byte {
 	payload.WriteMessage(p)
 	payload.WriteMessage(q)
 
-	payload.Write(nonce)
-	payload.Write(serverNonce)
-	payload.Write(NewNonce)
+	payload.Ext.Write(nonce)
+	payload.Ext.Write(serverNonce)
+	payload.Ext.Write(NewNonce)
 
-	return payload.Bytes()
+	return payload.Ext.Bytes()
 }
 
 func ReqPCPayload(nonce []byte) []byte {
-	payload := &helpers.Buffer{bytes.NewBuffer(nil)}
+	payload := &helpers.Buffer{Ext: bytes.NewBuffer(nil)}
 
 	log.Println("[*] building req_pc_multi payload")
 
 	payload.PutInt(CRCS["REQ_PC"])
-	payload.Write(nonce)
+	payload.Ext.Write(nonce)
 	Build(payload)
 
-	return payload.Bytes()
+	return payload.Ext.Bytes()
 }
 
 func Build(p *helpers.Buffer) {
-	_len := len(p.Bytes())
+	_len := len(p.Ext.Bytes())
 	_tmp := make([]byte, _len)
-	copy(_tmp, p.Bytes())
+	copy(_tmp, p.Ext.Bytes())
 
 	_ts := (time.Now().UnixNano() * 2) ^ 2
 
-	p.Reset()
+	p.Ext.Reset()
 
 	p.PutLong(0)
 	p.PutLong(_ts)
 	p.PutInt(uint32(_len))
 
-	p.Write(_tmp)
+	p.Ext.Write(_tmp)
 }

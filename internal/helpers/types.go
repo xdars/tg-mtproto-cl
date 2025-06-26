@@ -9,5 +9,5 @@ type Int128 struct {
 }
 
 type Buffer struct {
-	*bytes.Buffer
+	Ext *bytes.Buffer
 }

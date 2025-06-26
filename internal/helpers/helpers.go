@@ -27,25 +27,25 @@ func NewNonce() []byte {
 func (pl *Buffer) PutLong(val int64) {
 	arbitrary := make([]byte, 8)
 	binary.LittleEndian.PutUint64(arbitrary, uint64(val))
-	pl.Write(arbitrary)
+	pl.Ext.Write(arbitrary)
 }
 
 func (pl *Buffer) PutUint64(val uint64) {
 	arbitrary := make([]byte, 8)
 	binary.LittleEndian.PutUint64(arbitrary, uint64(val))
-	pl.Write(arbitrary)
+	pl.Ext.Write(arbitrary)
 }
 
 func (pl *Buffer) PutInt128(val int64) {
 	arb := make([]byte, 16)
 	binary.LittleEndian.PutUint64(arb, uint64(val))
-	pl.Write(arb)
+	pl.Ext.Write(arb)
 }
 
 func (pl *Buffer) PutInt(val uint32) {
 	arb := make([]byte, 4)
 	binary.LittleEndian.PutUint32(arb, val)
-	pl.Write(arb)
+	pl.Ext.Write(arb)
 }
 
 /*
@@ -75,5 +75,5 @@ func (e *Buffer) WriteMessage(msg []byte) {
 		copy(buf[1:], msg)
 	}
 
-	e.Write(buf)
+	e.Ext.Write(buf)
 }
