@@ -2,15 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"github.com/xdars/tg-mtproto-cl/internal/debouncer"
+	"github.com/xdars/tg-mtproto-cl/internal/wire"
+	"io/ioutil"
 	"log"
 	"net"
 	"sync"
 	"time"
-	"github.com/xdars/tg-mtproto-cl/internal/wire"
-	"github.com/xdars/tg-mtproto-cl/internal/debouncer"
-	"crypto/x509"
-	"encoding/pem"
-	"io/ioutil"
 )
 
 const (
@@ -55,12 +55,12 @@ func main() {
 	wire.Resp = make(chan []byte, 5)
 
 	w := new(wire.Wire)
-	
+
 	LoadKeys(w)
 	if w.Key == nil {
 		return
 	}
-	w.N = &wire.Net{C:conn}
+	w.N = &wire.Net{C: conn}
 	w.Processor(ctx, &wg)
 
 	w.DefineMode()

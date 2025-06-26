@@ -1,9 +1,10 @@
 package helpers
 
 import (
-	"math/big"
 	"bytes"
+	"math/big"
 )
+
 type Int128 struct {
 	*big.Int
 }

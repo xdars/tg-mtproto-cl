@@ -1,8 +1,8 @@
 package wire
 
 import (
-	"net"
 	"crypto/rsa"
+	"net"
 )
 
 type Wire struct {

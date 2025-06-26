@@ -2,10 +2,11 @@ package payload
 
 import (
 	"bytes"
+	"github.com/xdars/tg-mtproto-cl/internal/helpers"
 	"log"
 	"time"
-	"github.com/xdars/tg-mtproto-cl/internal/helpers"
 )
+
 type buf helpers.Buffer
 
 var CRCS = map[string]uint32{

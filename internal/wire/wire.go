@@ -2,17 +2,17 @@ package wire
 
 import (
 	"context"
-	"sync"
+	"crypto/sha1"
 	"encoding/binary"
 	"encoding/hex"
-	"github.com/xdars/tg-mtproto-cl/internal/payload"
-	"github.com/xdars/tg-mtproto-cl/internal/mtproto"
-	"github.com/xdars/tg-mtproto-cl/internal/helpers"
-	"github.com/xdars/tg-mtproto-cl/internal/crypto"
-	"log"
 	"fmt"
+	"github.com/xdars/tg-mtproto-cl/internal/crypto"
+	"github.com/xdars/tg-mtproto-cl/internal/helpers"
+	"github.com/xdars/tg-mtproto-cl/internal/mtproto"
+	"github.com/xdars/tg-mtproto-cl/internal/payload"
+	"log"
 	"math/big"
-	"crypto/sha1"
+	"sync"
 )
 
 func (wire *Wire) DefineMode() {
@@ -128,7 +128,6 @@ func (wire *Wire) ProcessResPQ(data []byte, nonce []byte) {
 
 	wire.Gift(reqDH)
 }
-
 
 func (wire *Wire) Gift(data []byte) {
 	datalen := len(data) / 4
