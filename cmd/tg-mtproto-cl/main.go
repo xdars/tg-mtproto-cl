@@ -60,7 +60,7 @@ func main() {
 	if w.Key == nil {
 		return
 	}
-	w.N = &wire.Net{conn}
+	w.N = &wire.Net{C:conn}
 	w.Processor(ctx, &wg)
 
 	w.DefineMode()
