@@ -18,7 +18,7 @@ type Wire struct {
 }
 
 type Net struct {
-	net.Conn
+	C net.Conn
 }
 
 var Resp chan []byte

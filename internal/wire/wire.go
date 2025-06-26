@@ -25,7 +25,7 @@ func (wire *Wire) DefineMode() {
 		bytes = []byte{0xee, 0xee, 0xee, 0xee}
 	}
 
-	wire.N.Write(bytes)
+	wire.N.C.Write(bytes)
 }
 
 func (wire *Wire) MakeAuthKey() {
@@ -152,12 +152,12 @@ func (wire *Wire) Gift(data []byte) {
 	}
 	payload = append(payload, data...)
 
-	if _, err := wire.N.Write(payload); err != nil {
+	if _, err := wire.N.C.Write(payload); err != nil {
 		log.Println("could not send payload", err)
 		return
 	}
 	rbuf := make([]byte, 1024)
-	n, _ := wire.N.Read(rbuf)
+	n, _ := wire.N.C.Read(rbuf)
 	Resp <- rbuf[:n]
 	log.Printf("[m:%s][l:%d] payload sent\n", wire.Mode, len(payload))
 
